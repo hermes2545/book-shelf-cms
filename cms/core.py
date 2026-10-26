@@ -180,6 +180,7 @@ def build_site(root: Path) -> int:
     (dist / "assets").mkdir(parents=True)
     for name in ("site.css", "site.js", "viewer.css", "viewer.js"):
         shutil.copy2(static_root / "static" / name, dist / "assets" / name)
+    shutil.copytree(static_root / "static" / "sounds", dist / "assets" / "sounds")
     shutil.copytree(static_root / "static" / "vendor", dist / "assets" / "vendor")
     shutil.copy2(static_root / "static" / "favicon.svg", dist / "favicon.svg")
     if (root / "library").exists():

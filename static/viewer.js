@@ -18,6 +18,18 @@ export function findCatalogBook(catalog, id) {
   return book;
 }
 
+export function nextZoom(current, deltaY) {
+  const direction = deltaY < 0 ? 1 : -1;
+  return Math.max(1, Math.min(2.5, Math.round((current + direction * 0.1) * 10) / 10));
+}
+
+export function clampPan(position, bounds) {
+  return {
+    x: Math.max(-bounds.x, Math.min(bounds.x, position.x)),
+    y: Math.max(-bounds.y, Math.min(bounds.y, position.y)),
+  };
+}
+
 let session = null;
 let generation = 0;
 
@@ -34,16 +46,22 @@ function elements() {
     input: document.querySelector('#page-number'),
     total: document.querySelector('#total'),
     fullscreen: document.querySelector('#fullscreen'),
+    mode: document.querySelector('#interaction-mode'),
+    pageTurnSound: document.querySelector('#page-turn-sound'),
   };
 }
 
 function createBookContainer(stage) {
   stage.replaceChildren();
+  const viewport = document.createElement('div');
+  viewport.id = 'book-viewport';
+  viewport.className = 'book-viewport';
   const book = document.createElement('div');
   book.id = 'book';
   book.setAttribute('aria-label', 'หน้าหนังสือแบบพลิกหน้า');
-  stage.append(book);
-  return book;
+  viewport.append(book);
+  stage.append(viewport);
+  return {book, viewport};
 }
 
 function setStatus(ui, message, error = false) {
@@ -126,7 +144,7 @@ async function initialize() {
     const first = await active.pdf.getPage(1);
     const firstViewport = first.getViewport({scale: 1});
     const ratio = firstViewport.height / firstViewport.width;
-    const bookElement = createBookContainer(ui.stage);
+    const {book: bookElement, viewport: bookViewport} = createBookContainer(ui.stage);
     active.pages = Array.from({length: active.pdf.numPages}, (_, index) => {
       const pageElement = document.createElement('div');
       pageElement.className = 'page';
@@ -222,6 +240,59 @@ async function initialize() {
     });
     active.flip.loadFromHTML(active.pages);
 
+    const baseRect = bookElement.getBoundingClientRect();
+    bookViewport.style.width = `${baseRect.width}px`;
+    bookViewport.style.height = `${baseRect.height}px`;
+    let zoom = 1;
+    let pan = {x: 0, y: 0};
+    let drag = null;
+    const panBounds = () => ({
+      x: Math.max(0, baseRect.width * (zoom - 1) / 2),
+      y: Math.max(0, baseRect.height * (zoom - 1) / 2),
+    });
+    const applyView = () => {
+      pan = clampPan(pan, panBounds());
+      bookViewport.style.transform = `translate3d(${pan.x}px, ${pan.y}px, 0) scale(${zoom})`;
+      const panning = zoom > 1;
+      ui.stage.classList.toggle('pan-mode', panning);
+      ui.mode.classList.toggle('pan-mode', panning);
+      ui.mode.setAttribute('aria-label', panning ? `โหมดเลื่อนเอกสาร ${Math.round(zoom * 100)} เปอร์เซ็นต์` : 'ซูมด้วยล้อเมาส์');
+      ui.mode.title = panning ? `เลื่อนเอกสาร · ${Math.round(zoom * 100)}% · คลิกเพื่อกลับ 100%` : 'หมุนล้อเมาส์เพื่อซูม';
+    };
+    const onWheel = event => {
+      event.preventDefault();
+      zoom = nextZoom(zoom, event.deltaY);
+      if (zoom === 1) pan = {x: 0, y: 0};
+      applyView();
+    };
+    const onPointerDown = event => {
+      if (zoom === 1 || (event.button !== 0 && event.button !== 1)) return;
+      event.preventDefault();
+      ui.stage.setPointerCapture(event.pointerId);
+      ui.stage.classList.add('is-dragging');
+      drag = {pointerId: event.pointerId, x: event.clientX, y: event.clientY, origin: {...pan}};
+    };
+    const onPointerMove = event => {
+      if (!drag || drag.pointerId !== event.pointerId) return;
+      pan = clampPan({
+        x: drag.origin.x + event.clientX - drag.x,
+        y: drag.origin.y + event.clientY - drag.y,
+      }, panBounds());
+      applyView();
+    };
+    const onPointerUp = event => {
+      if (!drag || drag.pointerId !== event.pointerId) return;
+      drag = null;
+      ui.stage.classList.remove('is-dragging');
+      try { ui.stage.releasePointerCapture(event.pointerId); } catch (_) { /* already released */ }
+    };
+    const resetZoom = () => {
+      zoom = 1;
+      pan = {x: 0, y: 0};
+      applyView();
+    };
+    applyView();
+
     ui.input.max = active.pdf.numPages;
     ui.total.textContent = `/ ${active.pdf.numPages}`;
     const update = index => {
@@ -231,7 +302,16 @@ async function initialize() {
       ui.next.disabled = index >= active.pdf.numPages - 1;
       renderNearby(index).catch(error => { if (current()) setStatus(ui, error.message, true); });
     };
-    active.flip.on('flip', event => update(event.data));
+    let currentPage = 0;
+    ui.pageTurnSound.volume = 0.18;
+    active.flip.on('flip', event => {
+      if (event.data !== currentPage) {
+        currentPage = event.data;
+        ui.pageTurnSound.currentTime = 0;
+        ui.pageTurnSound.play().catch(() => { /* browser may block audio before interaction */ });
+      }
+      update(event.data);
+    });
 
     const onPrevious = () => active.flip?.flipPrev();
     const onNext = () => active.flip?.flipNext();
@@ -265,14 +345,17 @@ async function initialize() {
       if (event.key === 'ArrowLeft') onPrevious();
       if (event.key === 'ArrowRight') onNext();
     };
-    for (const [target, name, listener] of [
+    for (const [target, name, listener, options] of [
       [ui.back, 'click', onBack],
       [ui.previous, 'click', onPrevious], [ui.next, 'click', onNext],
       [ui.go, 'click', onGo], [ui.fullscreen, 'click', onFullscreen],
+      [ui.mode, 'click', resetZoom], [ui.stage, 'wheel', onWheel, {passive: false}],
+      [ui.stage, 'pointerdown', onPointerDown], [ui.stage, 'pointermove', onPointerMove],
+      [ui.stage, 'pointerup', onPointerUp], [ui.stage, 'pointercancel', onPointerUp],
       [document, 'keydown', onKey],
     ]) {
-      target.addEventListener(name, listener);
-      active.cleanupListeners.push(() => target.removeEventListener(name, listener));
+      target.addEventListener(name, listener, options);
+      active.cleanupListeners.push(() => target.removeEventListener(name, listener, options));
     }
     ui.go.disabled = false;
     setStatus(ui, 'ลากมุมกระดาษ หรือใช้ปุ่มเพื่อพลิกหน้า');

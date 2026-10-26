@@ -19,6 +19,8 @@
 - Search/filter หน้า Public พร้อมชั้นหนังสือจริงที่ปรับ 4/2/1 คอลัมน์ตามหน้าจอ
 - เปิดปกด้วย mouse hover หรือ keyboard focus โดยรองรับ Reduce Motion
 - เปิด PDF ด้วย Flip Viewer แบบ static ซึ่งใช้ PDF.js + StPageFlip หรือเลือกเปิด PDF ต้นฉบับเป็นทางสำรอง
+- หมุนล้อเมาส์เหนือเอกสารเพื่อซูม 100–250%; เมื่อซูม ตัวอ่านจะเปลี่ยนเป็นโหมด Pan และลากด้วยปุ่มเมาส์ซ้ายหรือกลางได้ กดไอคอนมือเพื่อกลับ 100%
+- เล่นเสียงพลิกกระดาษ Old Book Page แบบเบาเมื่อเปลี่ยนหน้าสำเร็จ
 - สร้าง preview และกด Publish ไป GitHub
 - GitHub Actions ทดสอบและ deploy `dist/` เท่านั้น
 
@@ -90,6 +92,7 @@ node --check static/site.js
 - `static/` — Public CSS/JavaScript
 - `templates/viewer.html` — static Flip Viewer shell สำหรับ GitHub Pages
 - `static/viewer.js` — catalog-ID validation, PDF.js rendering, StPageFlip และ resource cleanup
+- `static/sounds/old-book-page.mp3` — เสียงพลิกหน้าที่เลือก ใช้ภายใต้ CC0 1.0
 - `static/vendor/` — PDF.js, StPageFlip, CMaps, standard fonts, WASM และใบอนุญาต
 - `THIRD_PARTY_NOTICES.md` — รุ่น แหล่งที่มา และใบอนุญาตของ runtime ภายนอก
 - `scripts/build.py` — static-site generator

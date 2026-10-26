@@ -253,6 +253,62 @@ class CatalogTests(unittest.TestCase):
         self.assertIn("ui.status.classList.toggle('ready'", viewer_script)
         self.assertIn(".reader-status.ready{opacity:0", viewer_style.replace(" ", ""))
 
+    def test_flip_viewer_wheel_zoom_switches_to_bounded_pan_mode(self):
+        root = Path(__file__).resolve().parents[1]
+        html = (root / "templates" / "viewer.html").read_text(encoding="utf-8")
+        script_path = root / "static" / "viewer.js"
+        script = script_path.read_text(encoding="utf-8")
+        style = (root / "static" / "viewer.css").read_text(encoding="utf-8")
+
+        self.assertIn('id="interaction-mode"', html)
+        self.assertIn('class="zoom-icon"', html)
+        self.assertIn('class="pan-icon"', html)
+        self.assertIn("'wheel', onWheel, {passive: false}", script)
+        self.assertIn("setPointerCapture", script)
+        self.assertIn("classList.toggle('pan-mode'", script)
+        self.assertIn(".pan-mode .zoom-icon", style)
+        self.assertIn(".pan-mode .pan-icon", style)
+        compact_style = style.replace(" ", "")
+        self.assertIn(".book-viewport{width:100%;height:100%", compact_style)
+        program = f"""
+          import {{nextZoom, clampPan}} from {json.dumps(script_path.resolve().as_uri())};
+          if (nextZoom(1, -100) !== 1.1) process.exit(10);
+          if (nextZoom(2.5, -100) !== 2.5) process.exit(11);
+          if (nextZoom(1.1, 100) !== 1) process.exit(12);
+          const pan = clampPan({{x: 500, y: -500}}, {{x: 120, y: 80}});
+          if (pan.x !== 120 || pan.y !== -80) process.exit(13);
+        """
+        subprocess.run(["node", "--input-type=module", "--eval", program],
+                       check=True, capture_output=True, text=True)
+
+    def test_flip_viewer_plays_selected_old_book_sound_after_page_change(self):
+        root = Path(__file__).resolve().parents[1]
+        html = (root / "templates" / "viewer.html").read_text(encoding="utf-8")
+        script = (root / "static" / "viewer.js").read_text(encoding="utf-8")
+        notice = (root / "THIRD_PARTY_NOTICES.md").read_text(encoding="utf-8")
+        sound = root / "static" / "sounds" / "old-book-page.mp3"
+
+        self.assertIn('id="page-turn-sound"', html)
+        self.assertIn('src="assets/sounds/old-book-page.mp3"', html)
+        self.assertIn("pageTurnSound.play()", script)
+        self.assertIn("event.data !== currentPage", script)
+        self.assertTrue(sound.is_file())
+        self.assertEqual("9d7fdd649382eace6876f1a3f4255d4f547624992f57c0e1ed974d8ff8ab8c0d",
+                         __import__("hashlib").sha256(sound.read_bytes()).hexdigest())
+        self.assertIn("CC0 1.0", notice)
+        self.assertIn("paper-fabric-page-turn-66", notice)
+
+        with tempfile.TemporaryDirectory() as tmp:
+            build_root = Path(tmp)
+            (build_root / "data").mkdir()
+            (build_root / "library" / "pdfs").mkdir(parents=True)
+            (build_root / "library" / "covers").mkdir(parents=True)
+            (build_root / "data" / "books.json").write_text("[]\n", encoding="utf-8")
+            build_site(build_root)
+            built = build_root / "dist" / "assets" / "sounds" / "old-book-page.mp3"
+            self.assertTrue(built.is_file())
+            self.assertEqual(sound.read_bytes(), built.read_bytes())
+
     def test_build_site_copies_complete_static_viewer_runtime_and_licenses(self):
         resource_root = Path(__file__).resolve().parents[1]
         source_vendor = resource_root / "static" / "vendor"
