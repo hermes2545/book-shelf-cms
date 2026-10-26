@@ -9,31 +9,35 @@
   <link rel="stylesheet" href="assets/viewer.css">
 </head>
 <body>
-  <header class="viewer-header">
-    <a class="back-link" href="./">← กลับชั้นหนังสือ</a>
-    <div class="viewer-heading">
-      <p class="viewer-kicker">BOOK SHELF · FLIP CATALOGUE</p>
-      <h1 id="viewer-title">กำลังเตรียมหนังสือ…</h1>
-      <p id="viewer-meta"></p>
-    </div>
-    <a id="original-pdf" class="original-link" href="./" target="_blank" rel="noopener" hidden>เปิด PDF ต้นฉบับ</a>
-  </header>
-
   <main id="reader" class="reader-shell">
     <p id="status" class="reader-status" role="status" aria-live="polite">กำลังโหลดตัวอ่าน…</p>
     <div id="stage" class="flip-stage">
       <div id="book" aria-label="หน้าหนังสือแบบพลิกหน้า"></div>
     </div>
     <nav class="page-controls" aria-label="เครื่องมือเปลี่ยนหน้า">
-      <button id="previous" type="button" disabled>← ก่อนหน้า</button>
-      <label for="page-number">หน้า</label>
+      <button id="back-shelf" class="icon-button" type="button" aria-label="กลับชั้นหนังสือ" title="กลับชั้นหนังสือ">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v14H4zM8 8v8m4-8v8m4-8v8M3 19h18"/></svg>
+      </button>
+      <button id="previous" class="icon-button" type="button" aria-label="หน้าก่อนหน้า" title="หน้าก่อนหน้า" disabled>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m14.5 6-6 6 6 6"/></svg>
+      </button>
+      <label class="visually-hidden" for="page-number">เลขหน้า</label>
       <input id="page-number" type="number" min="1" value="1" inputmode="numeric" aria-label="เลขหน้า">
       <span id="total" aria-live="polite">/ –</span>
-      <button id="go" type="button" disabled>ไป</button>
-      <button id="next" type="button" disabled>ถัดไป →</button>
-      <button id="fullscreen" type="button">เต็มจอ</button>
+      <button id="go" class="icon-button" type="button" aria-label="ไปยังหน้าที่ระบุ" title="ไปยังหน้า" disabled>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 4 4L19 6"/></svg>
+      </button>
+      <button id="next" class="icon-button" type="button" aria-label="หน้าถัดไป" title="หน้าถัดไป" disabled>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9.5 6 6 6-6 6"/></svg>
+      </button>
+      <button id="fullscreen" class="icon-button" type="button" aria-label="แสดงเต็มจอ" title="เต็มจอ">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 3H3v5m13-5h5v5M8 21H3v-5m13 5h5v-5"/></svg>
+      </button>
+      <a id="original-pdf" class="icon-button" href="./" target="_blank" rel="noopener" aria-label="เปิด PDF ต้นฉบับ" title="เปิด PDF ต้นฉบับ" hidden>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 2h8l4 4v16H6zM14 2v5h5M9 12h6m-6 4h6"/></svg>
+      </a>
     </nav>
-    <noscript>กรุณาเปิด JavaScript เพื่อใช้เอฟเฟกต์พลิกหน้า หรือเปิด PDF ต้นฉบับจากลิงก์ด้านบน</noscript>
+    <noscript>กรุณาเปิด JavaScript เพื่อใช้เอฟเฟกต์พลิกหน้า หรือเปิด PDF ต้นฉบับจากแถบเครื่องมือด้านล่าง</noscript>
   </main>
 
   <script src="assets/vendor/page-flip.browser.js" defer></script>

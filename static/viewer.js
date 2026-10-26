@@ -26,8 +26,7 @@ function elements() {
     reader: document.querySelector('#reader'),
     stage: document.querySelector('#stage'),
     status: document.querySelector('#status'),
-    title: document.querySelector('#viewer-title'),
-    meta: document.querySelector('#viewer-meta'),
+    back: document.querySelector('#back-shelf'),
     original: document.querySelector('#original-pdf'),
     previous: document.querySelector('#previous'),
     next: document.querySelector('#next'),
@@ -50,6 +49,7 @@ function createBookContainer(stage) {
 function setStatus(ui, message, error = false) {
   ui.status.textContent = message;
   ui.status.classList.toggle('error', error);
+  ui.status.classList.toggle('ready', !error && message.startsWith('ลาก'));
 }
 
 function isCancelled(error) {
@@ -102,8 +102,6 @@ async function initialize() {
     const book = findCatalogBook(await response.json(), id);
     if (!current()) return;
 
-    ui.title.textContent = book.title;
-    ui.meta.textContent = `${book.author} · ${book.category}`;
     document.title = `${book.title} · Book Shelf`;
     ui.original.href = book.pdf;
     ui.original.hidden = false;
@@ -200,14 +198,21 @@ async function initialize() {
     if (active.pdf.numPages > 1) await renderPage(1);
     if (!current()) return;
     const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const availableHeight = Math.max(300, ui.stage.clientHeight - 40);
+    const widthByHeight = Math.floor(availableHeight / ratio);
+    const widthByStage = ui.stage.clientWidth < 720
+      ? ui.stage.clientWidth - 24
+      : Math.floor((ui.stage.clientWidth - 32) / 2);
+    const maxPageWidth = Math.max(240, Math.min(680, widthByHeight, widthByStage));
+    const initialWidth = Math.min(420, maxPageWidth);
     active.flip = new window.St.PageFlip(bookElement, {
-      width: 420,
-      height: Math.round(420 * ratio),
+      width: initialWidth,
+      height: Math.round(initialWidth * ratio),
       size: 'stretch',
-      minWidth: 240,
-      maxWidth: 680,
-      minHeight: 300,
-      maxHeight: 920,
+      minWidth: Math.min(240, maxPageWidth),
+      maxWidth: maxPageWidth,
+      minHeight: Math.min(300, Math.round(maxPageWidth * ratio)),
+      maxHeight: Math.round(maxPageWidth * ratio),
       autoSize: true,
       usePortrait: true,
       showCover: true,
@@ -230,6 +235,13 @@ async function initialize() {
 
     const onPrevious = () => active.flip?.flipPrev();
     const onNext = () => active.flip?.flipNext();
+    const onBack = () => {
+      if (window.parent !== window) {
+        window.parent.postMessage({type: 'bookshelf-close-viewer'}, window.location.origin);
+      } else {
+        window.location.href = './';
+      }
+    };
     const onGo = async () => {
       const requested = Number(ui.input.value);
       if (!Number.isInteger(requested)) return;
@@ -254,6 +266,7 @@ async function initialize() {
       if (event.key === 'ArrowRight') onNext();
     };
     for (const [target, name, listener] of [
+      [ui.back, 'click', onBack],
       [ui.previous, 'click', onPrevious], [ui.next, 'click', onNext],
       [ui.go, 'click', onGo], [ui.fullscreen, 'click', onFullscreen],
       [document, 'keydown', onKey],

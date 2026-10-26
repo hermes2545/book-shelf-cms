@@ -20,9 +20,6 @@
   }
 
   function openReader(book) {
-    document.querySelector('#reader-title').textContent = book.title;
-    document.querySelector('#reader-meta').textContent = `${book.author} · ${book.category}`;
-    document.querySelector('#reader-download').href = book.pdf;
     frame.src = `viewer.html?id=${encodeURIComponent(book.id)}`;
     reader.showModal();
   }
@@ -93,6 +90,9 @@
   document.querySelector('#reader-close').addEventListener('click', closeReader);
   reader.addEventListener('close', () => { frame.src = 'about:blank'; });
   reader.addEventListener('click', event => { if (event.target === reader) closeReader(); });
+  window.addEventListener('message', event => {
+    if (event.origin === window.location.origin && event.data?.type === 'bookshelf-close-viewer') closeReader();
+  });
   renderCategories();
   render();
 })();

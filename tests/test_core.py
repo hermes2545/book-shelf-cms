@@ -217,6 +217,42 @@ class CatalogTests(unittest.TestCase):
         """
         subprocess.run(["node", "--input-type=module", "--eval", program], check=True, capture_output=True, text=True)
 
+    def test_flip_viewer_has_no_top_header_and_uses_compact_bottom_icon_bar(self):
+        root = Path(__file__).resolve().parents[1]
+        index = (root / "templates" / "index.html").read_text(encoding="utf-8")
+        viewer = (root / "templates" / "viewer.html").read_text(encoding="utf-8")
+        site_script = (root / "static" / "site.js").read_text(encoding="utf-8")
+        viewer_script = (root / "static" / "viewer.js").read_text(encoding="utf-8")
+        site_style = (root / "static" / "site.css").read_text(encoding="utf-8")
+        viewer_style = (root / "static" / "viewer.css").read_text(encoding="utf-8")
+
+        self.assertNotIn('class="viewer-header"', viewer)
+        self.assertNotIn("BOOK SHELF · FLIP CATALOGUE", viewer)
+        self.assertNotIn('id="viewer-title"', viewer)
+        self.assertNotIn('id="viewer-meta"', viewer)
+        self.assertIn('id="back-shelf"', viewer)
+        self.assertIn('id="original-pdf"', viewer)
+        self.assertIn('class="icon-button"', viewer)
+        self.assertIn('<svg', viewer)
+        self.assertLess(viewer.index('id="back-shelf"'), viewer.index('</nav>'))
+        self.assertLess(viewer.index('id="original-pdf"'), viewer.index('</nav>'))
+        self.assertNotIn('class="reader-bar"', index)
+        self.assertIn('class="reader-close"', index)
+        self.assertNotIn("#reader-title", site_script)
+        self.assertNotIn("#reader-meta", site_script)
+        self.assertNotIn("#reader-download", site_script)
+        self.assertIn("bookshelf-close-viewer", site_script)
+        self.assertIn("#back-shelf", viewer_script)
+        self.assertIn("bookshelf-close-viewer", viewer_script)
+        self.assertIn("#reader-frame{width:100%;height:100%", site_style.replace(" ", ""))
+        self.assertIn("height:calc(100dvh - 64px)", viewer_style)
+        self.assertIn("width:40px", viewer_style)
+        self.assertIn("const availableHeight", viewer_script)
+        self.assertIn("const maxPageWidth", viewer_script)
+        self.assertIn("maxHeight: Math.round(maxPageWidth * ratio)", viewer_script)
+        self.assertIn("ui.status.classList.toggle('ready'", viewer_script)
+        self.assertIn(".reader-status.ready{opacity:0", viewer_style.replace(" ", ""))
+
     def test_build_site_copies_complete_static_viewer_runtime_and_licenses(self):
         resource_root = Path(__file__).resolve().parents[1]
         source_vendor = resource_root / "static" / "vendor"
