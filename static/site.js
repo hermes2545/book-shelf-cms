@@ -23,30 +23,36 @@
     document.querySelector('#reader-title').textContent = book.title;
     document.querySelector('#reader-meta').textContent = `${book.author} · ${book.category}`;
     document.querySelector('#reader-download').href = book.pdf;
-    frame.src = `${book.pdf}#view=FitH`;
+    frame.src = `viewer.html?id=${encodeURIComponent(book.id)}`;
     reader.showModal();
   }
 
   function bookCard(book) {
-    const article = make('article', 'book');
+    const article = make('article', 'book-card');
     const button = make('button', 'cover-button');
     button.type = 'button';
-    button.setAttribute('aria-label', `เปิด ${book.title}`);
-    const cover = make('div', 'cover');
+    button.setAttribute('aria-label', `เปิด ${book.title} ใน Flip Viewer`);
+    const stage = make('div', 'book-stage');
+    const display = make('div', 'book-display');
+    const volume = make('span', 'book-volume');
     if (book.cover) {
       const image = document.createElement('img');
+      image.className = 'book-cover';
       image.src = book.cover;
       image.alt = `ปก ${book.title}`;
       image.loading = 'lazy';
       image.decoding = 'async';
-      cover.append(image);
+      volume.append(image);
     } else {
-      const fallback = make('div', 'cover-fallback');
+      const fallback = make('span', 'book-cover cover-fallback');
       fallback.append(make('strong', '', book.title), make('span', '', book.author));
-      cover.append(fallback);
+      volume.append(fallback);
     }
-    button.append(cover);
+    display.append(volume);
+    stage.append(display);
+    button.append(stage);
     button.addEventListener('click', () => openReader(book));
+
     const info = make('div', 'book-info');
     info.append(make('h2', '', book.title), make('p', 'author', book.author));
     const meta = make('div', 'meta');
@@ -79,10 +85,14 @@
     }));
   }
 
+  function closeReader() {
+    if (reader.open) reader.close();
+  }
+
   search.addEventListener('input', render);
-  document.querySelector('#reader-close').addEventListener('click', () => reader.close());
+  document.querySelector('#reader-close').addEventListener('click', closeReader);
   reader.addEventListener('close', () => { frame.src = 'about:blank'; });
-  reader.addEventListener('click', event => { if (event.target === reader) reader.close(); });
+  reader.addEventListener('click', event => { if (event.target === reader) closeReader(); });
   renderCategories();
   render();
 })();

@@ -16,8 +16,9 @@
 - อัปโหลด PDF สูงสุด 50 MB และปกสูงสุด 8 MB
 - ตรวจนามสกุลและ file signature ก่อนรับไฟล์
 - Draft/Published, หมวดหมู่, วันที่ และลำดับ
-- Search/filter หน้า Public
-- เปิด PDF ใน browser reader หรือแท็บใหม่
+- Search/filter หน้า Public พร้อมชั้นหนังสือจริงที่ปรับ 4/2/1 คอลัมน์ตามหน้าจอ
+- เปิดปกด้วย mouse hover หรือ keyboard focus โดยรองรับ Reduce Motion
+- เปิด PDF ด้วย Flip Viewer แบบ static ซึ่งใช้ PDF.js + StPageFlip หรือเลือกเปิด PDF ต้นฉบับเป็นทางสำรอง
 - สร้าง preview และกด Publish ไป GitHub
 - GitHub Actions ทดสอบและ deploy `dist/` เท่านั้น
 
@@ -87,6 +88,10 @@ node --check static/site.js
 - `cms/admin.html` — Admin UI
 - `templates/index.html` — Public template
 - `static/` — Public CSS/JavaScript
+- `templates/viewer.html` — static Flip Viewer shell สำหรับ GitHub Pages
+- `static/viewer.js` — catalog-ID validation, PDF.js rendering, StPageFlip และ resource cleanup
+- `static/vendor/` — PDF.js, StPageFlip, CMaps, standard fonts, WASM และใบอนุญาต
+- `THIRD_PARTY_NOTICES.md` — รุ่น แหล่งที่มา และใบอนุญาตของ runtime ภายนอก
 - `scripts/build.py` — static-site generator
 - `.github/workflows/pages.yml` — tests + GitHub Pages deployment
 - `docs/CMS-GUIDE-TH.md` — แนวทางสถาปัตยกรรมและการดูแลระบบ

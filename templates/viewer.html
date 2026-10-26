@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="th">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="description" content="ตัวอ่านหนังสือ PDF แบบพลิกหน้า">
+  <title>Flip Viewer · Book Shelf</title>
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="assets/viewer.css">
+</head>
+<body>
+  <header class="viewer-header">
+    <a class="back-link" href="./">← กลับชั้นหนังสือ</a>
+    <div class="viewer-heading">
+      <p class="viewer-kicker">BOOK SHELF · FLIP CATALOGUE</p>
+      <h1 id="viewer-title">กำลังเตรียมหนังสือ…</h1>
+      <p id="viewer-meta"></p>
+    </div>
+    <a id="original-pdf" class="original-link" href="./" target="_blank" rel="noopener" hidden>เปิด PDF ต้นฉบับ</a>
+  </header>
+
+  <main id="reader" class="reader-shell">
+    <p id="status" class="reader-status" role="status" aria-live="polite">กำลังโหลดตัวอ่าน…</p>
+    <div id="stage" class="flip-stage">
+      <div id="book" aria-label="หน้าหนังสือแบบพลิกหน้า"></div>
+    </div>
+    <nav class="page-controls" aria-label="เครื่องมือเปลี่ยนหน้า">
+      <button id="previous" type="button" disabled>← ก่อนหน้า</button>
+      <label for="page-number">หน้า</label>
+      <input id="page-number" type="number" min="1" value="1" inputmode="numeric" aria-label="เลขหน้า">
+      <span id="total" aria-live="polite">/ –</span>
+      <button id="go" type="button" disabled>ไป</button>
+      <button id="next" type="button" disabled>ถัดไป →</button>
+      <button id="fullscreen" type="button">เต็มจอ</button>
+    </nav>
+    <noscript>กรุณาเปิด JavaScript เพื่อใช้เอฟเฟกต์พลิกหน้า หรือเปิด PDF ต้นฉบับจากลิงก์ด้านบน</noscript>
+  </main>
+
+  <script src="assets/vendor/page-flip.browser.js" defer></script>
+  <script src="assets/viewer.js" type="module"></script>
+</body>
+</html>

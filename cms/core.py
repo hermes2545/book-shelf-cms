@@ -172,17 +172,20 @@ def build_site(root: Path) -> int:
     template_root = root if (root / "templates" / "index.html").is_file() else resource_root
     static_root = root if (root / "static").is_dir() else resource_root
     template = (template_root / "templates" / "index.html").read_text(encoding="utf-8")
+    viewer_template = (template_root / "templates" / "viewer.html").read_text(encoding="utf-8")
     html = template.replace("{{BOOKS_JSON}}", _safe_inline_json(published))
     dist = root / "dist"
     if dist.exists():
         shutil.rmtree(dist)
     (dist / "assets").mkdir(parents=True)
-    for name in ("site.css", "site.js"):
+    for name in ("site.css", "site.js", "viewer.css", "viewer.js"):
         shutil.copy2(static_root / "static" / name, dist / "assets" / name)
+    shutil.copytree(static_root / "static" / "vendor", dist / "assets" / "vendor")
     shutil.copy2(static_root / "static" / "favicon.svg", dist / "favicon.svg")
     if (root / "library").exists():
         shutil.copytree(root / "library", dist / "library")
     (dist / "index.html").write_text(html, encoding="utf-8")
+    (dist / "viewer.html").write_text(viewer_template, encoding="utf-8")
     (dist / "catalog.json").write_text(json.dumps(published, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     (dist / ".nojekyll").write_text("", encoding="utf-8")
     return len(published)

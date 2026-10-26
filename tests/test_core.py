@@ -139,6 +139,112 @@ class CatalogTests(unittest.TestCase):
             self.assertTrue((root / "dist" / "library" / "pdfs" / "public.pdf").is_file())
             self.assertTrue((root / "dist" / "favicon.svg").is_file())
 
+    def test_public_shelf_has_real_planks_and_accessible_cover_motion(self):
+        root = Path(__file__).resolve().parents[1]
+        script = (root / "static" / "site.js").read_text(encoding="utf-8")
+        style = (root / "static" / "site.css").read_text(encoding="utf-8")
+
+        for marker in ("book-card", "book-stage", "book-display", "book-volume"):
+            self.assertIn(marker, script)
+        compact = style.replace(" ", "")
+        self.assertIn("object-fit:contain", compact)
+        self.assertIn(".book-stage::before", style)
+        self.assertIn(".book-stage::after", style)
+        self.assertIn("transform-origin:leftcenter", compact)
+        self.assertIn("@media(hover:hover)and(pointer:fine)", compact)
+        self.assertIn(".book-card:hover .book-cover", style)
+        self.assertIn(".cover-button:focus-visible .book-cover", style)
+        self.assertIn("@media(prefers-reduced-motion:reduce)", compact)
+        reduced = style.split("@media (prefers-reduced-motion:reduce)", 1)[1]
+        self.assertIn("rotateY(-7deg)", reduced)
+        self.assertIn(".18s", reduced)
+
+    def test_public_reader_opens_static_flip_viewer_by_catalog_id(self):
+        root = Path(__file__).resolve().parents[1]
+        template = (root / "templates" / "index.html").read_text(encoding="utf-8")
+        script = (root / "static" / "site.js").read_text(encoding="utf-8")
+
+        self.assertIn('id="reader-frame"', template)
+        self.assertIn("viewer.html?id=", script)
+        self.assertIn("encodeURIComponent(book.id)", script)
+        self.assertNotIn("book.pdf}#view=FitH", script)
+        self.assertIn("frame.src = 'about:blank'", script)
+
+    def test_static_viewer_uses_catalog_lookup_and_local_flip_dependencies(self):
+        root = Path(__file__).resolve().parents[1]
+        html = (root / "templates" / "viewer.html").read_text(encoding="utf-8")
+        script = (root / "static" / "viewer.js").read_text(encoding="utf-8")
+
+        for marker in ('id="status"', 'id="book"', 'id="previous"', 'id="next"',
+                       'id="page-number"', 'id="fullscreen"', 'id="original-pdf"'):
+            self.assertIn(marker, html)
+        self.assertIn('assets/vendor/page-flip.browser.js', html)
+        self.assertIn('assets/viewer.js', html)
+        self.assertIn("fetch('catalog.json'", script)
+        self.assertIn("export function parseBookId", script)
+        self.assertIn("export function findCatalogBook", script)
+        self.assertIn("./vendor/pdfjs/pdf.mjs", script)
+        self.assertIn("./vendor/pdfjs/pdf.worker.mjs", script)
+        self.assertIn("./vendor/pdfjs/cmaps/", script)
+        self.assertIn("./vendor/pdfjs/standard_fonts/", script)
+        self.assertIn("./vendor/pdfjs/wasm/", script)
+        self.assertIn("isEvalSupported: false", script)
+        self.assertIn("window.St.PageFlip", script)
+        self.assertIn("pagehide", script)
+        self.assertIn("destroy", script)
+        self.assertNotRegex(html + script, r'''(?:src|href)=["']/''')
+
+    def test_static_viewer_id_validation_is_fail_closed(self):
+        root = Path(__file__).resolve().parents[1]
+        viewer = (root / "static" / "viewer.js").resolve().as_uri()
+        program = f"""
+          import {{parseBookId, findCatalogBook}} from {json.dumps(viewer)};
+          const bad = ['', '../../private', '/absolute', 'https://example.invalid/x', 'A', 'ภาษาไทย', 'ok/id'];
+          for (const value of bad) {{
+            let rejected = false;
+            try {{ parseBookId(new URLSearchParams({{id: value}})); }} catch (_) {{ rejected = true; }}
+            if (!rejected) process.exit(10);
+          }}
+          let duplicateRejected = false;
+          try {{ parseBookId(new URLSearchParams('id=book&id=other')); }} catch (_) {{ duplicateRejected = true; }}
+          if (!duplicateRejected) process.exit(11);
+          const id = parseBookId(new URLSearchParams({{id: 'book-1'}}));
+          const book = findCatalogBook([{{id:'book-1', pdf:'library/pdfs/a.pdf'}}], id);
+          if (book.pdf !== 'library/pdfs/a.pdf') process.exit(12);
+          let unknownRejected = false;
+          try {{ findCatalogBook([], 'book-1'); }} catch (_) {{ unknownRejected = true; }}
+          if (!unknownRejected) process.exit(13);
+        """
+        subprocess.run(["node", "--input-type=module", "--eval", program], check=True, capture_output=True, text=True)
+
+    def test_build_site_copies_complete_static_viewer_runtime_and_licenses(self):
+        resource_root = Path(__file__).resolve().parents[1]
+        source_vendor = resource_root / "static" / "vendor"
+        self.assertTrue((source_vendor / "licenses" / "page-flip-LICENSE").is_file())
+        self.assertTrue((source_vendor / "licenses" / "pdfjs-LICENSE").is_file())
+        self.assertTrue((source_vendor / "pdfjs" / "pdf.mjs").is_file())
+        self.assertTrue((source_vendor / "pdfjs" / "pdf.worker.mjs").is_file())
+        for directory in ("cmaps", "standard_fonts", "wasm"):
+            self.assertTrue((source_vendor / "pdfjs" / directory).is_dir())
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "data").mkdir()
+            (root / "library" / "pdfs").mkdir(parents=True)
+            (root / "library" / "covers").mkdir(parents=True)
+            (root / "data" / "books.json").write_text("[]\n", encoding="utf-8")
+            build_site(root)
+            for path in ("viewer.html", "assets/viewer.css", "assets/viewer.js",
+                         "assets/vendor/page-flip.browser.js"):
+                self.assertTrue((root / "dist" / path).is_file(), path)
+            source_files = {path.relative_to(source_vendor) for path in source_vendor.rglob("*") if path.is_file()}
+            built_files = {path.relative_to(root / "dist" / "assets" / "vendor")
+                           for path in (root / "dist" / "assets" / "vendor").rglob("*") if path.is_file()}
+            self.assertEqual(source_files, built_files)
+            for path in source_files:
+                self.assertEqual((source_vendor / path).read_bytes(),
+                                 (root / "dist" / "assets" / "vendor" / path).read_bytes())
+
 
 if __name__ == "__main__":
     unittest.main()
