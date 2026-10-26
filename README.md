@@ -38,6 +38,17 @@ python -m cms.server serve
 
 ไฟล์ `.admin-config.json` จะถูกสร้างในเครื่อง, permission `0600`, ถูก ignore และห้าม commit
 
+### ใช้ผ่าน Tailscale
+
+สำหรับเครื่องที่ติดตั้งโครงการนี้ ใช้ backend loopback พอร์ต `18765` และ Tailscale Serve HTTPS พอร์ต `8453`:
+
+```bash
+python -m cms.server serve --port 18765
+tailscale serve --bg --https=8453 http://127.0.0.1:18765
+```
+
+เปิด `https://<TAILSCALE-DNS-NAME>:8453/admin/` จากอุปกรณ์ใน Tailnet เท่านั้น หากยังไม่มี admin config หน้า Setup ครั้งแรกจะให้สร้าง username/password และจะปิดตัวเองหลังบันทึกสำเร็จ ห้ามใช้ `tailscale funnel` กับหน้า Admin
+
 ### เปลี่ยนตำแหน่ง config
 
 ```bash

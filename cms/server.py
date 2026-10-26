@@ -34,22 +34,41 @@ def load_config() -> dict[str, str]:
     return data
 
 
+def create_admin_config(path: Path, username: str, password: str, confirmation: str) -> None:
+    username = username.strip()
+    if path.exists():
+        raise ValidationError("Admin configuration already exists")
+    if not 1 <= len(username) <= 80 or any(ord(char) < 32 for char in username):
+        raise ValidationError("Username is required (maximum 80 characters)")
+    if password != confirmation:
+        raise ValidationError("Passwords do not match")
+    payload = {"username": username, "password_hash": hash_password(password)}
+    path.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    except FileExistsError as exc:
+        raise ValidationError("Admin configuration already exists") from exc
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as handle:
+            json.dump(payload, handle, ensure_ascii=False, indent=2)
+            handle.write("\n")
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.chmod(path, 0o600)
+    except Exception:
+        path.unlink(missing_ok=True)
+        raise
+
+
 def setup() -> None:
     print(f"Creating local admin configuration: {CONFIG}")
     username = input("Username: ").strip()
-    if not username or len(username) > 80:
-        raise SystemExit("Username is required (maximum 80 characters)")
     first = getpass.getpass("Password (minimum 10 characters): ")
     second = getpass.getpass("Confirm password: ")
-    if first != second:
-        raise SystemExit("Passwords do not match")
-    payload = {"username": username, "password_hash": hash_password(first)}
-    CONFIG.parent.mkdir(parents=True, exist_ok=True)
-    fd = os.open(CONFIG, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
-    with os.fdopen(fd, "w", encoding="utf-8") as handle:
-        json.dump(payload, handle, ensure_ascii=False, indent=2)
-        handle.write("\n")
-    os.chmod(CONFIG, 0o600)
+    try:
+        create_admin_config(CONFIG, username, first, second)
+    except ValidationError as exc:
+        raise SystemExit(str(exc)) from exc
     print("Setup complete. The password itself was not stored.")
 
 
@@ -146,7 +165,11 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send(200, body, "image/svg+xml")
             if parsed.path == "/api/session":
                 found = self._session()
-                return self._json(200, {"authenticated": bool(found), "csrf": found[1]["csrf"] if found else ""})
+                return self._json(200, {
+                    "authenticated": bool(found),
+                    "csrf": found[1]["csrf"] if found else "",
+                    "setup_required": not CONFIG.is_file(),
+                })
             if parsed.path == "/api/books":
                 self._require()
                 return self._json(200, load_books(ROOT))
@@ -186,6 +209,8 @@ class Handler(BaseHTTPRequestHandler):
     def do_POST(self) -> None:
         parsed = urlparse(self.path)
         try:
+            if parsed.path == "/api/setup":
+                return self._setup()
             if parsed.path == "/api/login":
                 return self._login()
             if parsed.path == "/api/logout":
@@ -233,6 +258,20 @@ class Handler(BaseHTTPRequestHandler):
         SESSIONS[token] = {"csrf": csrf, "at": now}
         self._json(200, {"ok": True, "csrf": csrf}, {"Set-Cookie": f"bookshelf_session={token}; Path=/; HttpOnly; SameSite=Strict"})
 
+    def _setup(self) -> None:
+        if CONFIG.is_file():
+            raise ValidationError("Admin configuration already exists")
+        body = self._read_json()
+        if not isinstance(body, dict):
+            raise ValidationError("Invalid setup request")
+        create_admin_config(
+            CONFIG,
+            str(body.get("username", "")),
+            str(body.get("password", "")),
+            str(body.get("confirmation", "")),
+        )
+        self._json(201, {"ok": True})
+
     def _upload(self, query: dict[str, list[str]]) -> None:
         kind = query.get("kind", [""])[0]
         original = query.get("filename", [""])[0]
@@ -268,7 +307,6 @@ def main() -> None:
     if args.command == "setup":
         setup()
         return
-    load_config()
     server = ThreadingHTTPServer(("127.0.0.1", args.port), Handler)
     print(f"Book Shelf CMS: http://127.0.0.1:{args.port}/admin/")
     print("Press Ctrl+C to stop. The server listens on this computer only.")

@@ -3,6 +3,8 @@
 Book Shelf CMS is designed for a single administrator on a trusted local computer.
 
 - Keep the admin server bound to `127.0.0.1`.
+- Remote administration may use Tailscale Serve over HTTPS, but must never use Tailscale Funnel.
+- First-run browser setup is available only while no admin configuration exists; complete it immediately after enabling the private Tailnet route.
 - Do not commit `.admin-config.json`, passwords, access tokens, cookies, or local paths.
 - Published PDFs and covers are public. Draft is catalog visibility, not access control.
 - Use a unique password of at least 10 characters.

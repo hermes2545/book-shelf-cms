@@ -1,4 +1,5 @@
 import json
+import stat
 import tempfile
 import unittest
 from pathlib import Path
@@ -11,9 +12,22 @@ from cms.core import (
     safe_upload_name,
     verify_password,
 )
+from cms.server import create_admin_config
 
 
 class PasswordTests(unittest.TestCase):
+    def test_first_run_setup_writes_private_hashed_config_once(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            path = Path(temp_dir) / ".admin-config.json"
+            create_admin_config(path, "reader", "correct horse battery", "correct horse battery")
+            payload = json.loads(path.read_text(encoding="utf-8"))
+            self.assertEqual(payload["username"], "reader")
+            self.assertNotIn("password", payload)
+            self.assertTrue(verify_password("correct horse battery", payload["password_hash"]))
+            self.assertEqual(stat.S_IMODE(path.stat().st_mode), 0o600)
+            with self.assertRaises(ValidationError):
+                create_admin_config(path, "other", "another good password", "another good password")
+
     def test_password_hash_is_salted_and_verifiable(self):
         encoded = hash_password("correct horse battery staple")
         self.assertNotIn("correct horse battery staple", encoded)
@@ -22,6 +36,12 @@ class PasswordTests(unittest.TestCase):
 
 
 class CatalogTests(unittest.TestCase):
+    def test_admin_ui_supports_first_run_password_setup(self):
+        root = Path(__file__).resolve().parents[1]
+        html = (root / "cms" / "admin.html").read_text(encoding="utf-8")
+        self.assertIn('id="setup-form"', html)
+        self.assertIn("/api/setup", html)
+
     def test_normalize_book_rejects_paths_outside_library(self):
         with self.assertRaises(ValidationError):
             normalize_book({
