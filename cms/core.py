@@ -179,6 +179,7 @@ def build_site(root: Path) -> int:
     (dist / "assets").mkdir(parents=True)
     for name in ("site.css", "site.js"):
         shutil.copy2(static_root / "static" / name, dist / "assets" / name)
+    shutil.copy2(static_root / "static" / "favicon.svg", dist / "favicon.svg")
     if (root / "library").exists():
         shutil.copytree(root / "library", dist / "library")
     (dist / "index.html").write_text(html, encoding="utf-8")

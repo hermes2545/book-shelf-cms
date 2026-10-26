@@ -87,6 +87,7 @@ class CatalogTests(unittest.TestCase):
             self.assertNotIn("</script><script>", html)
             self.assertIn("\\u003c/script>", html)
             self.assertTrue((root / "dist" / "library" / "pdfs" / "public.pdf").is_file())
+            self.assertTrue((root / "dist" / "favicon.svg").is_file())
 
 
 if __name__ == "__main__":

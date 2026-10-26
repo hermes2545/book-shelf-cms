@@ -141,6 +141,9 @@ class Handler(BaseHTTPRequestHandler):
             if parsed.path in ("/", "/admin", "/admin/"):
                 body = (ROOT / "cms" / "admin.html").read_bytes()
                 return self._send(200, body, "text/html; charset=utf-8")
+            if parsed.path == "/favicon.svg":
+                body = (ROOT / "static" / "favicon.svg").read_bytes()
+                return self._send(200, body, "image/svg+xml")
             if parsed.path == "/api/session":
                 found = self._session()
                 return self._json(200, {"authenticated": bool(found), "csrf": found[1]["csrf"] if found else ""})
