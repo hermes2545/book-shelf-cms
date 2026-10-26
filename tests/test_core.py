@@ -253,6 +253,25 @@ class CatalogTests(unittest.TestCase):
         self.assertIn("ui.status.classList.toggle('ready'", viewer_script)
         self.assertIn(".reader-status.ready{opacity:0", viewer_style.replace(" ", ""))
 
+    def test_flip_viewer_uses_centered_page_cascade_while_loading(self):
+        root = Path(__file__).resolve().parents[1]
+        viewer = (root / "templates" / "viewer.html").read_text(encoding="utf-8")
+        script = (root / "static" / "viewer.js").read_text(encoding="utf-8")
+        style = (root / "static" / "viewer.css").read_text(encoding="utf-8")
+
+        self.assertIn('id="status-copy"', viewer)
+        self.assertIn('class="page-cascade"', viewer)
+        self.assertEqual(viewer.count('class="page-cascade__sheet"'), 3)
+        self.assertIn("statusText: document.querySelector('#status-copy')", script)
+        self.assertIn("classList.toggle('is-loading', loading)", script)
+        self.assertIn("message.startsWith('กำลัง')", script)
+        compact_style = style.replace(" ", "")
+        self.assertIn(".reader-status.is-loading{", compact_style)
+        self.assertIn("top:calc((100dvh-64px)/2)", compact_style)
+        self.assertIn("@keyframespage-cascade-flip", compact_style)
+        self.assertIn(".reader-status.is-loading.status-copy", compact_style)
+        self.assertIn("@media(prefers-reduced-motion:reduce)", compact_style)
+
     def test_flip_viewer_wheel_zoom_switches_to_bounded_pan_mode(self):
         root = Path(__file__).resolve().parents[1]
         html = (root / "templates" / "viewer.html").read_text(encoding="utf-8")

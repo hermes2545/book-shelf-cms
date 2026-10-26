@@ -10,7 +10,14 @@
 </head>
 <body>
   <main id="reader" class="reader-shell">
-    <p id="status" class="reader-status" role="status" aria-live="polite">กำลังโหลดตัวอ่าน…</p>
+    <p id="status" class="reader-status is-loading" role="status" aria-live="polite">
+      <span id="status-copy" class="status-copy">กำลังโหลดตัวอ่าน…</span>
+      <span class="page-cascade" aria-hidden="true">
+        <span class="page-cascade__sheet"></span>
+        <span class="page-cascade__sheet"></span>
+        <span class="page-cascade__sheet"></span>
+      </span>
+    </p>
     <div id="stage" class="flip-stage">
       <div id="book-viewport" class="book-viewport">
         <div id="book" aria-label="หน้าหนังสือแบบพลิกหน้า"></div>

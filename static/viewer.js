@@ -52,6 +52,7 @@ function elements() {
     reader: document.querySelector('#reader'),
     stage: document.querySelector('#stage'),
     status: document.querySelector('#status'),
+    statusText: document.querySelector('#status-copy'),
     back: document.querySelector('#back-shelf'),
     original: document.querySelector('#original-pdf'),
     previous: document.querySelector('#previous'),
@@ -79,7 +80,9 @@ function createBookContainer(stage) {
 }
 
 function setStatus(ui, message, error = false) {
-  ui.status.textContent = message;
+  const loading = !error && message.startsWith('กำลัง');
+  ui.statusText.textContent = message;
+  ui.status.classList.toggle('is-loading', loading);
   ui.status.classList.toggle('error', error);
   ui.status.classList.toggle('ready', !error && message.startsWith('ลาก'));
 }
