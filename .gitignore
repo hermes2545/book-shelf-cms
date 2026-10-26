@@ -1,0 +1,7 @@
+__pycache__/
+*.py[cod]
+.admin-config.json
+.env
+.DS_Store
+cms-data/
+dist/

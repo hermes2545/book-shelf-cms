@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="th">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="description" content="ชั้นหนังสือดิจิทัลสำหรับเอกสารและ eBook PDF">
+  <title>Book Shelf</title>
+  <link rel="stylesheet" href="assets/site.css">
+</head>
+<body>
+  <header class="masthead">
+    <a class="brand" href="./" aria-label="Book Shelf หน้าแรก">
+      <span class="brand-mark" aria-hidden="true">B</span>
+      <span><strong>Book Shelf</strong><small>Personal PDF Library</small></span>
+    </a>
+    <div class="header-copy">
+      <p class="eyebrow">DIGITAL READING ROOM</p>
+      <h1>หนังสือและเอกสาร<br>ที่พร้อมเปิดอ่านเสมอ</h1>
+      <p>ค้นหา เลือกหมวด และเปิด PDF จากชั้นหนังสือส่วนตัว</p>
+    </div>
+  </header>
+
+  <main>
+    <section class="tools" aria-label="ค้นหาและกรองหนังสือ">
+      <label class="search"><span aria-hidden="true">⌕</span><input id="search" type="search" placeholder="ค้นหาชื่อ ผู้เขียน หรือคำอธิบาย" autocomplete="off"></label>
+      <div id="categories" class="categories" aria-label="หมวดหมู่"></div>
+      <p id="count" class="count" aria-live="polite"></p>
+    </section>
+    <section id="shelf" class="shelf" aria-label="รายการหนังสือ"></section>
+    <section id="empty" class="empty" hidden>
+      <span aria-hidden="true">□</span>
+      <h2>ยังไม่พบหนังสือ</h2>
+      <p>ลองเปลี่ยนคำค้นหรือเลือกหมวดอื่น</p>
+    </section>
+  </main>
+
+  <dialog id="reader">
+    <div class="reader-bar">
+      <div><strong id="reader-title"></strong><small id="reader-meta"></small></div>
+      <a id="reader-download" class="download" target="_blank" rel="noopener">เปิด PDF ในแท็บใหม่</a>
+      <button id="reader-close" type="button" aria-label="ปิดตัวอ่าน">×</button>
+    </div>
+    <iframe id="reader-frame" title="PDF reader"></iframe>
+  </dialog>
+
+  <footer><span>BOOK SHELF</span><span>เอกสารในเว็บไซต์นี้เป็นไฟล์สาธารณะ</span></footer>
+  <script id="books-data" type="application/json">{{BOOKS_JSON}}</script>
+  <script src="assets/site.js" defer></script>
+</body>
+</html>
