@@ -72,20 +72,19 @@ def setup() -> None:
     print("Setup complete. The password itself was not stored.")
 
 
-def publish_changes() -> str:
-    build_site(ROOT)
-    branch = subprocess.run(["git", "branch", "--show-current"], cwd=ROOT, text=True, capture_output=True, check=True).stdout.strip()
+def publish_changes(root: Path = ROOT) -> str:
+    build_site(root)
+    branch = subprocess.run(["git", "branch", "--show-current"], cwd=root, text=True, capture_output=True, check=True).stdout.strip()
     if branch != "main":
         raise RuntimeError("Publishing is allowed only from the main branch")
-    subprocess.run(["git", "add", "-A", "--", "data/books.json", "library/covers", "library/pdfs"], cwd=ROOT, check=True)
-    staged = subprocess.run(["git", "diff", "--cached", "--quiet"], cwd=ROOT)
-    if staged.returncode == 0:
-        return "ไม่มีการเปลี่ยนแปลงใหม่สำหรับเผยแพร่"
-    if staged.returncode != 1:
+    subprocess.run(["git", "add", "-A", "--", "data/books.json", "library/covers", "library/pdfs"], cwd=root, check=True)
+    staged = subprocess.run(["git", "diff", "--cached", "--quiet"], cwd=root)
+    if staged.returncode == 1:
+        message = f"Update book shelf {time.strftime('%Y-%m-%d %H:%M')}"
+        subprocess.run(["git", "commit", "-m", message], cwd=root, check=True)
+    elif staged.returncode != 0:
         raise RuntimeError("Unable to inspect staged changes")
-    message = f"Update book shelf {time.strftime('%Y-%m-%d %H:%M')}"
-    subprocess.run(["git", "commit", "-m", message], cwd=ROOT, check=True)
-    subprocess.run(["git", "push", "origin", "main"], cwd=ROOT, check=True)
+    subprocess.run(["git", "push", "origin", "main"], cwd=root, check=True)
     return "ส่งข้อมูลขึ้น GitHub แล้ว ระบบกำลังสร้างหน้าเว็บ"
 
 

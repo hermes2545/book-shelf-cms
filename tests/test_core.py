@@ -1,4 +1,5 @@
 import json
+import subprocess
 import stat
 import tempfile
 import unittest
@@ -12,7 +13,7 @@ from cms.core import (
     safe_upload_name,
     verify_password,
 )
-from cms.server import create_admin_config
+from cms.server import create_admin_config, publish_changes
 
 
 class PasswordTests(unittest.TestCase):
@@ -36,6 +37,35 @@ class PasswordTests(unittest.TestCase):
 
 
 class CatalogTests(unittest.TestCase):
+    def test_publish_retries_push_when_prior_commit_is_unpushed(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp = Path(temp_dir)
+            root = temp / "work"
+            remote = temp / "remote.git"
+            subprocess.run(["git", "init", "--bare", str(remote)], check=True, capture_output=True)
+            subprocess.run(["git", "init", "-b", "main", str(root)], check=True, capture_output=True)
+            subprocess.run(["git", "config", "user.name", "CMS Test"], cwd=root, check=True)
+            subprocess.run(["git", "config", "user.email", "cms-test@example.invalid"], cwd=root, check=True)
+            (root / "data").mkdir()
+            (root / "library" / "pdfs").mkdir(parents=True)
+            (root / "library" / "covers").mkdir(parents=True)
+            (root / "data" / "books.json").write_text("[]\n", encoding="utf-8")
+            (root / "library" / "pdfs" / ".gitkeep").touch()
+            (root / "library" / "covers" / ".gitkeep").touch()
+            subprocess.run(["git", "add", "."], cwd=root, check=True)
+            subprocess.run(["git", "commit", "-m", "Initial"], cwd=root, check=True, capture_output=True)
+            subprocess.run(["git", "remote", "add", "origin", str(remote)], cwd=root, check=True)
+            subprocess.run(["git", "push", "-u", "origin", "main"], cwd=root, check=True, capture_output=True)
+            (root / "data" / "books.json").write_text("[]\n\n", encoding="utf-8")
+            subprocess.run(["git", "add", "data/books.json"], cwd=root, check=True)
+            subprocess.run(["git", "commit", "-m", "Already committed locally"], cwd=root, check=True, capture_output=True)
+
+            publish_changes(root)
+
+            local_head = subprocess.run(["git", "rev-parse", "HEAD"], cwd=root, text=True, capture_output=True, check=True).stdout.strip()
+            remote_head = subprocess.run(["git", "--git-dir", str(remote), "rev-parse", "main"], text=True, capture_output=True, check=True).stdout.strip()
+            self.assertEqual(local_head, remote_head)
+
     def test_admin_ui_supports_first_run_password_setup(self):
         root = Path(__file__).resolve().parents[1]
         html = (root / "cms" / "admin.html").read_text(encoding="utf-8")
