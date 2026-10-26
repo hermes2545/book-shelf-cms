@@ -270,13 +270,25 @@ class CatalogTests(unittest.TestCase):
         self.assertIn(".pan-mode .pan-icon", style)
         compact_style = style.replace(" ", "")
         self.assertIn(".book-viewport{width:100%;height:100%", compact_style)
+        self.assertIn("touch-action:none", compact_style)
+        self.assertIn("const touchPointers = new Map()", script)
+        self.assertIn("const DOUBLE_TAP_DELAY", script)
+        self.assertIn("event.pointerType === 'touch'", script)
+        self.assertIn("event.stopPropagation()", script)
+        self.assertIn("const touchStarts = new Map()", script)
+        self.assertIn("'touchend', onTouchEndGuard", script)
+        self.assertIn("disableFlipByClick: coarsePointer", script)
         program = f"""
-          import {{nextZoom, clampPan}} from {json.dumps(script_path.resolve().as_uri())};
+          import {{nextZoom, clampPan, pinchZoom, panForPinch}} from {json.dumps(script_path.resolve().as_uri())};
           if (nextZoom(1, -100) !== 1.1) process.exit(10);
           if (nextZoom(2.5, -100) !== 2.5) process.exit(11);
           if (nextZoom(1.1, 100) !== 1) process.exit(12);
           const pan = clampPan({{x: 500, y: -500}}, {{x: 120, y: 80}});
           if (pan.x !== 120 || pan.y !== -80) process.exit(13);
+          if (pinchZoom(1, 100, 180) !== 1.8) process.exit(14);
+          if (pinchZoom(2, 100, 200) !== 2.5) process.exit(15);
+          const anchored = panForPinch({{x:0,y:0}}, {{x:150,y:250}}, {{x:170,y:270}}, {{x:200,y:300}}, 1, 2);
+          if (anchored.x !== 70 || anchored.y !== 70) process.exit(16);
         """
         subprocess.run(["node", "--input-type=module", "--eval", program],
                        check=True, capture_output=True, text=True)

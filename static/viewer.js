@@ -30,6 +30,20 @@ export function clampPan(position, bounds) {
   };
 }
 
+export function pinchZoom(startZoom, startDistance, currentDistance) {
+  if (startDistance <= 0 || currentDistance <= 0) return Math.max(1, Math.min(2.5, startZoom));
+  return Math.max(1, Math.min(2.5, Math.round(startZoom * currentDistance / startDistance * 100) / 100));
+}
+
+export function panForPinch(startPan, startCenter, currentCenter, stageCenter, startZoom, currentZoom) {
+  const contentX = (startCenter.x - stageCenter.x - startPan.x) / startZoom;
+  const contentY = (startCenter.y - stageCenter.y - startPan.y) / startZoom;
+  return {
+    x: currentCenter.x - stageCenter.x - currentZoom * contentX,
+    y: currentCenter.y - stageCenter.y - currentZoom * contentY,
+  };
+}
+
 let session = null;
 let generation = 0;
 
@@ -216,6 +230,7 @@ async function initialize() {
     if (active.pdf.numPages > 1) await renderPage(1);
     if (!current()) return;
     const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const coarsePointer = matchMedia('(pointer: coarse)').matches;
     const availableHeight = Math.max(300, ui.stage.clientHeight - 40);
     const widthByHeight = Math.floor(availableHeight / ratio);
     const widthByStage = ui.stage.clientWidth < 720
@@ -237,6 +252,7 @@ async function initialize() {
       flippingTime: reduceMotion ? 220 : 650,
       maxShadowOpacity: reduceMotion ? 0.08 : 0.28,
       mobileScrollSupport: false,
+      disableFlipByClick: coarsePointer,
     });
     active.flip.loadFromHTML(active.pages);
 
@@ -246,6 +262,19 @@ async function initialize() {
     let zoom = 1;
     let pan = {x: 0, y: 0};
     let drag = null;
+    let pinch = null;
+    let lastTap = null;
+    const touchPointers = new Map();
+    const touchStarts = new Map();
+    const touchGuards = new Map();
+    const DOUBLE_TAP_DELAY = 320;
+    const point = event => ({x: event.clientX, y: event.clientY});
+    const distance = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
+    const midpoint = (a, b) => ({x: (a.x + b.x) / 2, y: (a.y + b.y) / 2});
+    const stageCenter = () => {
+      const rect = ui.stage.getBoundingClientRect();
+      return {x: rect.left + rect.width / 2, y: rect.top + rect.height / 2};
+    };
     const panBounds = () => ({
       x: Math.max(0, baseRect.width * (zoom - 1) / 2),
       y: Math.max(0, baseRect.height * (zoom - 1) / 2),
@@ -256,23 +285,94 @@ async function initialize() {
       const panning = zoom > 1;
       ui.stage.classList.toggle('pan-mode', panning);
       ui.mode.classList.toggle('pan-mode', panning);
-      ui.mode.setAttribute('aria-label', panning ? `โหมดเลื่อนเอกสาร ${Math.round(zoom * 100)} เปอร์เซ็นต์` : 'ซูมด้วยล้อเมาส์');
-      ui.mode.title = panning ? `เลื่อนเอกสาร · ${Math.round(zoom * 100)}% · คลิกเพื่อกลับ 100%` : 'หมุนล้อเมาส์เพื่อซูม';
+      ui.mode.setAttribute('aria-label', panning ? `โหมดเลื่อนเอกสาร ${Math.round(zoom * 100)} เปอร์เซ็นต์` : 'ซูมเอกสาร');
+      ui.mode.title = panning ? `เลื่อนเอกสาร · ${Math.round(zoom * 100)}% · แตะเพื่อกลับ 100%` : 'แตะเพื่อซูม หรือถ่างสองนิ้ว';
+    };
+    const setZoom = (next, anchor = stageCenter()) => {
+      const previous = zoom;
+      zoom = Math.max(1, Math.min(2.5, Math.round(next * 100) / 100));
+      pan = zoom === 1 ? {x: 0, y: 0} : panForPinch(pan, anchor, anchor, stageCenter(), previous, zoom);
+      applyView();
     };
     const onWheel = event => {
       event.preventDefault();
-      zoom = nextZoom(zoom, event.deltaY);
-      if (zoom === 1) pan = {x: 0, y: 0};
-      applyView();
+      setZoom(nextZoom(zoom, event.deltaY), point(event));
+    };
+    const beginDrag = (pointerId, position) => {
+      try { ui.stage.setPointerCapture(pointerId); } catch (_) { /* capture can move between elements */ }
+      ui.stage.classList.add('is-dragging');
+      drag = {pointerId, x: position.x, y: position.y, origin: {...pan}};
+    };
+    const onTouchStartGuard = event => {
+      for (const touch of event.changedTouches) {
+        touchGuards.set(touch.identifier, {x: touch.clientX, y: touch.clientY, moved: false});
+      }
+    };
+    const onTouchMoveGuard = event => {
+      for (const touch of event.changedTouches) {
+        const start = touchGuards.get(touch.identifier);
+        if (start && Math.hypot(touch.clientX - start.x, touch.clientY - start.y) > 12) start.moved = true;
+      }
+    };
+    const onTouchEndGuard = event => {
+      let tap = false;
+      for (const touch of event.changedTouches) {
+        const start = touchGuards.get(touch.identifier);
+        tap ||= Boolean(start && !start.moved);
+        touchGuards.delete(touch.identifier);
+      }
+      if (tap) {
+        event.stopPropagation();
+        event.preventDefault();
+      }
     };
     const onPointerDown = event => {
+      const position = point(event);
+      if (event.pointerType === 'touch') {
+        touchPointers.set(event.pointerId, position);
+        touchStarts.set(event.pointerId, position);
+        if (touchPointers.size === 2) {
+          event.preventDefault();
+          const [first, second] = [...touchPointers.values()];
+          pinch = {
+            startDistance: distance(first, second),
+            startZoom: zoom,
+            startPan: {...pan},
+            startCenter: midpoint(first, second),
+            stageCenter: stageCenter(),
+          };
+          drag = null;
+          lastTap = null;
+          ui.stage.classList.add('is-dragging');
+          for (const pointerId of touchPointers.keys()) {
+            try { ui.stage.setPointerCapture(pointerId); } catch (_) { /* first pointer may be owned by PageFlip */ }
+          }
+          return;
+        }
+        if (zoom > 1) {
+          event.preventDefault();
+          beginDrag(event.pointerId, position);
+        }
+        return;
+      }
       if (zoom === 1 || (event.button !== 0 && event.button !== 1)) return;
       event.preventDefault();
-      ui.stage.setPointerCapture(event.pointerId);
-      ui.stage.classList.add('is-dragging');
-      drag = {pointerId: event.pointerId, x: event.clientX, y: event.clientY, origin: {...pan}};
+      beginDrag(event.pointerId, position);
     };
     const onPointerMove = event => {
+      if (event.pointerType === 'touch' && touchPointers.has(event.pointerId)) {
+        touchPointers.set(event.pointerId, point(event));
+      }
+      if (pinch && touchPointers.size >= 2) {
+        event.preventDefault();
+        const [first, second] = [...touchPointers.values()];
+        const center = midpoint(first, second);
+        const next = pinchZoom(pinch.startZoom, pinch.startDistance, distance(first, second));
+        pan = panForPinch(pinch.startPan, pinch.startCenter, center, pinch.stageCenter, pinch.startZoom, next);
+        zoom = next;
+        applyView();
+        return;
+      }
       if (!drag || drag.pointerId !== event.pointerId) return;
       pan = clampPan({
         x: drag.origin.x + event.clientX - drag.x,
@@ -281,16 +381,40 @@ async function initialize() {
       applyView();
     };
     const onPointerUp = event => {
-      if (!drag || drag.pointerId !== event.pointerId) return;
-      drag = null;
-      ui.stage.classList.remove('is-dragging');
+      const wasPinching = Boolean(pinch);
+      const released = point(event);
+      const touchStart = touchStarts.get(event.pointerId);
+      const isTap = event.pointerType === 'touch' && touchStart && distance(touchStart, released) <= 12;
+      if (event.pointerType === 'touch') {
+        touchPointers.delete(event.pointerId);
+        touchStarts.delete(event.pointerId);
+      }
+      if (pinch && touchPointers.size < 2) {
+        pinch = null;
+        ui.stage.classList.remove('is-dragging');
+        const remaining = [...touchPointers.entries()][0];
+        if (remaining && zoom > 1) beginDrag(remaining[0], remaining[1]);
+      } else if (drag?.pointerId === event.pointerId) {
+        drag = null;
+        ui.stage.classList.remove('is-dragging');
+      }
       try { ui.stage.releasePointerCapture(event.pointerId); } catch (_) { /* already released */ }
+
+      if (event.type === 'pointerup' && isTap && !wasPinching && touchPointers.size === 0) {
+        event.stopPropagation();
+        event.preventDefault();
+        const now = performance.now();
+        if (lastTap && now - lastTap.time <= DOUBLE_TAP_DELAY && distance(lastTap, released) <= 28) {
+          event.preventDefault();
+          setZoom(zoom > 1 ? 1 : 2, released);
+          lastTap = null;
+        } else {
+          lastTap = {...released, time: now};
+        }
+      }
     };
-    const resetZoom = () => {
-      zoom = 1;
-      pan = {x: 0, y: 0};
-      applyView();
-    };
+    const resetZoom = () => setZoom(1);
+    const toggleZoom = () => zoom === 1 ? setZoom(1.5) : resetZoom();
     applyView();
 
     ui.input.max = active.pdf.numPages;
@@ -349,16 +473,22 @@ async function initialize() {
       [ui.back, 'click', onBack],
       [ui.previous, 'click', onPrevious], [ui.next, 'click', onNext],
       [ui.go, 'click', onGo], [ui.fullscreen, 'click', onFullscreen],
-      [ui.mode, 'click', resetZoom], [ui.stage, 'wheel', onWheel, {passive: false}],
-      [ui.stage, 'pointerdown', onPointerDown], [ui.stage, 'pointermove', onPointerMove],
-      [ui.stage, 'pointerup', onPointerUp], [ui.stage, 'pointercancel', onPointerUp],
+      [ui.mode, 'click', toggleZoom], [ui.stage, 'wheel', onWheel, {passive: false}],
+      [ui.stage, 'touchstart', onTouchStartGuard, {capture: true, passive: false}],
+      [ui.stage, 'touchmove', onTouchMoveGuard, {capture: true, passive: false}],
+      [ui.stage, 'touchend', onTouchEndGuard, {capture: true, passive: false}],
+      [ui.stage, 'touchcancel', onTouchEndGuard, {capture: true, passive: false}],
+      [ui.stage, 'pointerdown', onPointerDown, {capture: true}],
+      [ui.stage, 'pointermove', onPointerMove, {capture: true}],
+      [ui.stage, 'pointerup', onPointerUp, {capture: true}],
+      [ui.stage, 'pointercancel', onPointerUp, {capture: true}],
       [document, 'keydown', onKey],
     ]) {
       target.addEventListener(name, listener, options);
       active.cleanupListeners.push(() => target.removeEventListener(name, listener, options));
     }
     ui.go.disabled = false;
-    setStatus(ui, 'ลากมุมกระดาษ หรือใช้ปุ่มเพื่อพลิกหน้า');
+    setStatus(ui, 'ลากมุมเพื่อพลิกหน้า · ถ่างสองนิ้วหรือแตะสองครั้งเพื่อซูม');
     update(0);
   } catch (error) {
     if (!current()) return;
